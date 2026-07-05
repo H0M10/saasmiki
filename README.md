@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SaasMike — Pedidos por WhatsApp para restaurante
 
-## Getting Started
+Sistema de pedidos: el cliente ordena por WhatsApp (menú interactivo, notas,
+pago, ubicación) y el restaurante gestiona todo desde el panel web
+(aceptar/declinar, cocina, repartidores, tickets con QR, menú, KPIs, horarios).
 
-First, run the development server:
+- 📋 Plan completo: [PLAN.md](PLAN.md)
+- 📱 Guía para conectar WhatsApp: [GUIA-WHATSAPP.md](GUIA-WHATSAPP.md)
 
+## Stack
+
+| Pieza | Tecnología |
+|---|---|
+| Web + API/webhook | Next.js (App Router, TypeScript, Tailwind) |
+| Base de datos + Realtime + Auth | Supabase (Postgres) |
+| Mensajería | WhatsApp Cloud API (Meta) |
+| Hosting | Vercel (deploy automático desde GitHub) |
+
+## Puesta en marcha
+
+### 1. Supabase
+1. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratis).
+2. Ve a **SQL Editor → New query**, pega todo el contenido de
+   [supabase/schema.sql](supabase/schema.sql) y dale **Run**.
+3. En **Project Settings → API** copia: `Project URL`, `anon key` y
+   `service_role key`.
+
+### 2. Variables de entorno
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+copy .env.example .env.local   # y llena los valores
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Correr en local
+```bash
+npm install
+npm run dev
+```
+Abre http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Deploy (GitHub + Vercel)
+1. Sube el repo a GitHub.
+2. En [vercel.com](https://vercel.com): **Add New → Project → importa el repo**.
+3. En **Settings → Environment Variables** agrega las mismas variables de
+   `.env.local`.
+4. Cada `git push` a `main` despliega solo.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+> ⚠️ GitHub **Pages** no sirve para este proyecto (solo hospeda sitios
+> estáticos y el webhook de WhatsApp necesita servidor). El flujo correcto es:
+> código en GitHub → Vercel lo despliega.
 
-## Learn More
+### 5. Webhook de WhatsApp
+Con la app ya desplegada, sigue el **Paso 5** de
+[GUIA-WHATSAPP.md](GUIA-WHATSAPP.md) usando:
+`https://TU-APP.vercel.app/api/whatsapp/webhook`
 
-To learn more about Next.js, take a look at the following resources:
+## Estructura
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+  api/whatsapp/webhook/route.ts   ← recibe/verifica mensajes de Meta
+lib/
+  supabase.ts                     ← cliente de BD (servidor)
+  whatsapp.ts                     ← enviar texto / botones / listas
+supabase/
+  schema.sql                      ← esquema completo de la BD
+```
