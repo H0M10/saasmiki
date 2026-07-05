@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { enviarTexto } from "@/lib/whatsapp";
+import { procesarMensaje, MensajeEntrante } from "@/lib/bot";
 
 // GET: verificación del webhook. Meta llama esta URL una sola vez
 // (cuando das "Verificar y guardar" en el panel) con un reto que hay
@@ -16,19 +16,31 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-// POST: aquí llegan los mensajes de los clientes.
-// Por ahora responde un eco para comprobar que todo el circuito funciona;
-// en la Fase 2 esto se reemplaza por la máquina de estados del pedido.
+// POST: aquí llegan los mensajes de los clientes (y también callbacks de
+// estado tipo "entregado/leído", que ignoramos).
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  try {
+    const body = await req.json();
+    const msg = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
-  const mensaje = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-  if (mensaje) {
-    const de = mensaje.from as string; // teléfono del cliente
-    const texto = mensaje.text?.body ?? "(mensaje no de texto)";
-    await enviarTexto(de, `✅ Bot conectado. Recibí: "${texto}"`);
+    if (msg) {
+      const entrante: MensajeEntrante = {
+        de: msg.from,
+        texto: msg.text?.body ?? null,
+        opcionId:
+          msg.interactive?.list_reply?.id ??
+          msg.interactive?.button_reply?.id ??
+          null,
+        ubicacion: msg.location
+          ? { lat: msg.location.latitude, lng: msg.location.longitude }
+          : null,
+      };
+      await procesarMensaje(entrante);
+    }
+  } catch (err) {
+    // Nunca dejar que un error tumbe la respuesta: si Meta no recibe 200,
+    // reintenta en bucle y puede desactivar el webhook.
+    console.error("Error procesando webhook:", err);
   }
-
-  // Siempre responder 200 rápido: si no, Meta reintenta y desactiva el webhook.
   return NextResponse.json({ ok: true });
 }
