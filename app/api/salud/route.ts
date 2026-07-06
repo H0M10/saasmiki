@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase";
 
-// Diagnóstico rápido del despliegue: qué versión corre y qué variables de
-// entorno están presentes (solo sí/no — nunca los valores).
+// Diagnóstico rápido del despliegue: qué versión corre, qué variables de
+// entorno están presentes (solo sí/no — nunca los valores) y si la conexión
+// a la base de datos funciona.
 export async function GET() {
+  let db = "ok";
+  try {
+    const { error } = await supabaseAdmin().from("ajustes").select("id").single();
+    if (error) db = `error: ${error.message}`;
+  } catch (e) {
+    db = `excepción: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
   return NextResponse.json({
     version: "fase-2-bot",
+    db,
     variables: {
       NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
