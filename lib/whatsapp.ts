@@ -16,6 +16,8 @@ async function enviar(payload: object) {
   if (!res.ok) {
     const err = await res.text();
     console.error("Error de WhatsApp API:", err);
+    // Lanzar para que el error llegue al log de diagnóstico del webhook
+    throw new Error(`WhatsApp API: ${err}`);
   }
   return res;
 }

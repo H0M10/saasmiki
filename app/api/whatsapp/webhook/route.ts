@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { procesarMensaje, MensajeEntrante } from "@/lib/bot";
 import { env } from "@/lib/env";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // GET: verificación del webhook. Meta llama esta URL una sola vez
 // (cuando das "Verificar y guardar" en el panel) con un reto que hay
@@ -45,6 +46,19 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
     console.error("Error procesando webhook:", err);
+    // Guardar el último error en la BD para poder diagnosticarlo desde fuera
+    // (se usa una fila especial "_diag" de la tabla de sesiones).
+    try {
+      await supabaseAdmin()
+        .from("sesiones_bot")
+        .upsert({
+          telefono: "_diag",
+          paso: "error",
+          datos: { error, fecha: new Date().toISOString() },
+        });
+    } catch {
+      // si ni esto se puede, no hay más que hacer
+    }
   }
   return NextResponse.json(error ? { ok: false, error } : { ok: true });
 }
