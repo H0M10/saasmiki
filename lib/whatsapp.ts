@@ -1,13 +1,14 @@
 // Helpers para enviar mensajes por la WhatsApp Cloud API.
+import { env } from "./env";
 
 const API_URL = () =>
-  `https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  `https://graph.facebook.com/v21.0/${env("WHATSAPP_PHONE_NUMBER_ID")}/messages`;
 
 async function enviar(payload: object) {
   const res = await fetch(API_URL(), {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+      Authorization: `Bearer ${env("WHATSAPP_TOKEN")}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),

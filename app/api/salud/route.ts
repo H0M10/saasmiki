@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { env } from "@/lib/env";
 
 // Diagnóstico rápido del despliegue: qué versión corre, qué variables de
 // entorno están presentes (solo sí/no — nunca los valores) y si la conexión
@@ -16,6 +17,9 @@ export async function GET() {
   return NextResponse.json({
     version: "fase-2-bot",
     db,
+    // La URL del proyecto no es secreta (viaja al navegador por el prefijo
+    // NEXT_PUBLIC); mostrarla ayuda a detectar errores de pegado en Vercel.
+    supabase_url_leida: env("NEXT_PUBLIC_SUPABASE_URL"),
     variables: {
       NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

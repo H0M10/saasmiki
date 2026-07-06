@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { procesarMensaje, MensajeEntrante } from "@/lib/bot";
+import { env } from "@/lib/env";
 
 // GET: verificación del webhook. Meta llama esta URL una sola vez
 // (cuando das "Verificar y guardar" en el panel) con un reto que hay
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
   const token = params.get("hub.verify_token");
   const reto = params.get("hub.challenge");
 
-  if (modo === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (modo === "subscribe" && token === env("WHATSAPP_VERIFY_TOKEN")) {
     return new NextResponse(reto, { status: 200 });
   }
   return new NextResponse("Forbidden", { status: 403 });
