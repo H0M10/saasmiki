@@ -1,6 +1,16 @@
 // Helpers para enviar mensajes por la WhatsApp Cloud API.
 import { env } from "./env";
 
+// WhatsApp reporta los celulares de México como 521XXXXXXXXXX (13 dígitos,
+// con un "1" extra tras el código de país), pero para ENVIAR la API espera
+// 52XXXXXXXXXX. Sin esta corrección, Meta rechaza el envío (#131030).
+function normalizar(numero: string): string {
+  if (numero.startsWith("521") && numero.length === 13) {
+    return `52${numero.slice(3)}`;
+  }
+  return numero;
+}
+
 const API_URL = () =>
   `https://graph.facebook.com/v21.0/${env("WHATSAPP_PHONE_NUMBER_ID")}/messages`;
 
@@ -25,7 +35,7 @@ async function enviar(payload: object) {
 export function enviarTexto(a: string, texto: string) {
   return enviar({
     messaging_product: "whatsapp",
-    to: a,
+    to: normalizar(a),
     type: "text",
     text: { body: texto },
   });
@@ -38,7 +48,7 @@ export function enviarBotones(
 ) {
   return enviar({
     messaging_product: "whatsapp",
-    to: a,
+    to: normalizar(a),
     type: "interactive",
     interactive: {
       type: "button",
@@ -64,7 +74,7 @@ export function enviarLista(
 ) {
   return enviar({
     messaging_product: "whatsapp",
-    to: a,
+    to: normalizar(a),
     type: "interactive",
     interactive: {
       type: "list",
