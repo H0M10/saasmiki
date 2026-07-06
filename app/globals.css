@@ -1,26 +1,177 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   Tema "La Comanda" — cocina nocturna + tickets de papel.
+   Carbón cálido de fondo, tarjetas blanco-papel como comandas,
+   acentos de chile, fuego y salsa verde.
+   ============================================================ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@theme {
+  /* Base carbón (cálido, no negro puro) */
+  --color-carbon: #16110c;
+  --color-carbon-2: #211a13;
+  --color-carbon-3: #2d241a;
+  --color-humo: #8a7d6d;
+  --color-hueso: #e9e0d1;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Papel de comanda */
+  --color-papel: #faf5ea;
+  --color-papel-2: #f1e9d8;
+  --color-tinta: #241d14;
+  --color-tinta-suave: #6b6152;
+
+  /* Acentos */
+  --color-chile: #e5484d;
+  --color-chile-2: #c93a3f;
+  --color-fuego: #ff9f1c;
+  --color-fuego-2: #e08508;
+  --color-salsa: #3f9e5f;
+  --color-salsa-2: #2f8049;
+  --color-calle: #4f9cf9;
+
+  /* Tipografía */
+  --font-titulos: var(--fuente-titulos);
+  --font-texto: var(--fuente-texto);
+  --font-ticket: var(--fuente-ticket);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-carbon);
+  color: var(--color-hueso);
+  font-family: var(--fuente-texto), sans-serif;
+  /* textura sutil: grano de plancha */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgb(255 159 28 / 0.06), transparent),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgb(255 255 255 / 0.008) 2px,
+      rgb(255 255 255 / 0.008) 4px
+    );
+}
+
+/* Títulos condensados estilo rotulación, siempre en mayúsculas */
+.titulo {
+  font-family: var(--fuente-titulos), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Números y precios con sabor a impresora térmica */
+.ticket-num {
+  font-family: var(--fuente-ticket), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tarjeta comanda: papel con borde superior troquelado */
+.comanda {
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  border-radius: 4px 4px 10px 10px;
+  box-shadow:
+    0 1px 0 rgb(0 0 0 / 0.35),
+    0 6px 18px rgb(0 0 0 / 0.45);
+  position: relative;
+}
+.comanda::before {
+  /* perforación superior, como ticket arrancado del rollo */
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: radial-gradient(circle at 6px 4px, var(--color-carbon) 3px, transparent 3.5px);
+  background-size: 14px 8px;
+  background-repeat: repeat-x;
+}
+
+/* Separador punteado de ticket */
+.corte {
+  border: none;
+  border-top: 2px dashed rgb(36 29 20 / 0.25);
+  margin: 0.5rem 0;
+}
+
+/* Sello de estado (tipo estampa de hule) */
+.sello {
+  font-family: var(--fuente-titulos), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.4rem;
+  transform: rotate(-2deg);
+  display: inline-block;
+}
+
+/* Botón de acción principal del panel */
+.btn {
+  font-family: var(--fuente-titulos), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  transition: transform 0.06s ease, filter 0.15s ease;
+  cursor: pointer;
+}
+.btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Campo de formulario sobre papel */
+.campo {
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  border: 2px solid rgb(36 29 20 / 0.2);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  outline: none;
+}
+.campo:focus {
+  border-color: var(--color-fuego);
+}
+
+/* Campo sobre carbón */
+.campo-oscuro {
+  background: var(--color-carbon-2);
+  color: var(--color-hueso);
+  border: 2px solid var(--color-carbon-3);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  outline: none;
+}
+.campo-oscuro:focus {
+  border-color: var(--color-fuego);
+}
+
+/* Aparición escalonada de las comandas */
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.entrar {
+  animation: entrar 0.25s ease both;
+}
+
+/* Parpadeo de urgencia para pedidos nuevos */
+@keyframes urgente {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(229 72 77 / 0.55), 0 6px 18px rgb(0 0 0 / 0.45); }
+  50% { box-shadow: 0 0 0 6px rgb(229 72 77 / 0), 0 6px 18px rgb(0 0 0 / 0.45); }
+}
+.urgente {
+  animation: urgente 1.6s ease-in-out infinite;
 }

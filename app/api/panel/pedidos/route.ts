@@ -9,13 +9,22 @@ export async function GET(req: NextRequest) {
   }
 
   const db = supabaseAdmin();
-  const { data, error } = await db
-    .from("pedidos")
-    .select(
-      "id, numero_corto, estado, metodo_pago, paga_con, cambio, lat, lng, total, creado_at, clientes(nombre, telefono), pedido_items(nombre_platillo, cantidad, precio_unit, notas)"
-    )
-    .in("estado", ["pendiente", "aceptado", "preparando", "listo", "en_reparto"])
-    .order("creado_at", { ascending: true });
+  const campos =
+    "id, numero_corto, estado, metodo_pago, paga_con, cambio, lat, lng, total, creado_at, clientes(nombre, telefono), pedido_items(nombre_platillo, cantidad, precio_unit, notas)";
+
+  const consultar = (extra: string) =>
+    db
+      .from("pedidos")
+      .select(campos + extra)
+      .in("estado", ["pendiente", "aceptado", "preparando", "listo", "en_reparto"])
+      .order("creado_at", { ascending: true });
+
+  // Con ubicación del repartidor si ya se corrió la migración 2;
+  // si no existe la columna todavía, se consulta sin ella.
+  let { data, error } = await consultar(", repa_lat, repa_lng, repa_actualizado_at");
+  if (error?.message.includes("repa_lat")) {
+    ({ data, error } = await consultar(""));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

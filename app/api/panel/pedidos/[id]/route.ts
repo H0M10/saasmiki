@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { claveValida } from "@/lib/panel-auth";
+import { claveValida, claveRepaValida } from "@/lib/panel-auth";
 import { enviarTexto } from "@/lib/whatsapp";
+
+// Acciones que puede ejecutar la clave del repartidor
+const ACCIONES_REPA = ["reparto", "entregado"];
 
 // Transiciones de estado permitidas: qué acción aplica desde qué estados,
 // a cuál pasa y qué timestamp registra (para los KPIs de tiempos).
@@ -26,12 +29,14 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!claveValida(req)) {
-    return NextResponse.json({ error: "clave inválida" }, { status: 401 });
-  }
-
   const { id } = await params;
   const { accion, motivo } = await req.json();
+
+  const esAdmin = claveValida(req);
+  const esRepa = claveRepaValida(req) && ACCIONES_REPA.includes(accion);
+  if (!esAdmin && !esRepa) {
+    return NextResponse.json({ error: "clave inválida" }, { status: 401 });
+  }
 
   const t = TRANSICIONES[accion];
   if (!t) {

@@ -1,6 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useClave,
+  PantallaClave,
+  NavPanel,
+  dinero,
+  minutosDesde,
+  beep,
+} from "@/components/panel-ui";
 
 type Pedido = {
   id: string;
@@ -13,6 +21,9 @@ type Pedido = {
   lng: number | null;
   total: number;
   creado_at: string;
+  repa_lat?: number | null;
+  repa_lng?: number | null;
+  repa_actualizado_at?: string | null;
   clientes: { nombre: string | null; telefono: string } | null;
   pedido_items: {
     nombre_platillo: string;
@@ -23,65 +34,40 @@ type Pedido = {
 };
 
 const COLUMNAS: { titulo: string; estados: string[]; color: string }[] = [
-  { titulo: "🔔 Pendientes", estados: ["pendiente"], color: "border-amber-400" },
-  { titulo: "🍳 En cocina", estados: ["aceptado", "preparando"], color: "border-sky-400" },
-  { titulo: "📦 Listos", estados: ["listo"], color: "border-violet-400" },
-  { titulo: "🛵 En reparto", estados: ["en_reparto"], color: "border-emerald-400" },
+  { titulo: "Pendientes", estados: ["pendiente"], color: "text-chile" },
+  { titulo: "En cocina", estados: ["aceptado", "preparando"], color: "text-fuego" },
+  { titulo: "Listos", estados: ["listo"], color: "text-hueso" },
+  { titulo: "En reparto", estados: ["en_reparto"], color: "text-calle" },
 ];
 
-const dinero = (n: number | null) => (n == null ? "" : `$${Number(n).toFixed(2)}`);
-
-function minutosDesde(iso: string): number {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-}
-
-function beep() {
-  try {
-    const ctx = new AudioContext();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.frequency.value = 880;
-    g.gain.setValueAtTime(0.25, ctx.currentTime);
-    o.start();
-    o.stop(ctx.currentTime + 0.5);
-  } catch {
-    // sin audio no pasa nada
-  }
-}
-
 export default function Panel() {
-  const [clave, setClave] = useState<string | null>(null);
-  const [claveInput, setClaveInput] = useState("");
-  const [claveMala, setClaveMala] = useState(false);
+  const { clave, lista, guardar, salir } = useClave("panel_key");
+  const [mala, setMala] = useState(false);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [cargando, setCargando] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
   const pendientesPrevios = useRef(0);
 
-  useEffect(() => {
-    setClave(localStorage.getItem("panel_key"));
-  }, []);
-
-  const cargar = useCallback(async (k: string) => {
-    try {
-      const res = await fetch("/api/panel/pedidos", { headers: { "x-panel-key": k } });
-      if (res.status === 401) {
-        localStorage.removeItem("panel_key");
-        setClave(null);
-        setClaveMala(true);
-        return;
+  const cargar = useCallback(
+    async (k: string) => {
+      try {
+        const res = await fetch("/api/panel/pedidos", { headers: { "x-panel-key": k } });
+        if (res.status === 401) {
+          salir();
+          setMala(true);
+          return;
+        }
+        const json = await res.json();
+        const listaP: Pedido[] = json.pedidos ?? [];
+        const pendientes = listaP.filter((p) => p.estado === "pendiente").length;
+        if (pendientes > pendientesPrevios.current) beep();
+        pendientesPrevios.current = pendientes;
+        setPedidos(listaP);
+      } catch {
+        /* sin conexión: reintenta en el siguiente ciclo */
       }
-      const json = await res.json();
-      const lista: Pedido[] = json.pedidos ?? [];
-      const pendientes = lista.filter((p) => p.estado === "pendiente").length;
-      if (pendientes > pendientesPrevios.current) beep();
-      pendientesPrevios.current = pendientes;
-      setPedidos(lista);
-    } catch {
-      // sin conexión: se reintenta en el siguiente ciclo
-    }
-  }, []);
+    },
+    [salir]
+  );
 
   useEffect(() => {
     if (!clave) return;
@@ -95,9 +81,9 @@ export default function Panel() {
     let motivo: string | undefined;
     if (accion === "rechazar" || accion === "cancelar") {
       motivo = prompt("Motivo (se le enviará al cliente):") ?? undefined;
-      if (motivo === undefined) return; // canceló el prompt
+      if (motivo === undefined) return;
     }
-    setCargando(true);
+    setOcupado(true);
     try {
       const res = await fetch(`/api/panel/pedidos/${p.id}`, {
         method: "POST",
@@ -108,74 +94,47 @@ export default function Panel() {
       if (!res.ok) alert(`Error: ${json.error}`);
       await cargar(clave);
     } finally {
-      setCargando(false);
+      setOcupado(false);
     }
   }
 
-  // ---------- Pantalla de clave ----------
+  if (!lista) return null;
   if (!clave) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-neutral-950 text-neutral-100">
-        <form
-          className="bg-neutral-900 border border-neutral-700 rounded-2xl p-8 w-80 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            localStorage.setItem("panel_key", claveInput);
-            setClave(claveInput);
-            setClaveMala(false);
-          }}
-        >
-          <h1 className="text-xl font-bold text-center">🍳 Panel de pedidos</h1>
-          <input
-            type="password"
-            placeholder="Clave del panel"
-            className="rounded-lg bg-neutral-800 border border-neutral-600 px-3 py-2"
-            value={claveInput}
-            onChange={(e) => setClaveInput(e.target.value)}
-            autoFocus
-          />
-          {claveMala && <p className="text-red-400 text-sm">Clave incorrecta</p>}
-          <button className="rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 font-semibold">
-            Entrar
-          </button>
-        </form>
-      </main>
+      <PantallaClave
+        titulo="Panel de pedidos"
+        incorrecta={mala}
+        onEntrar={(v) => {
+          guardar(v);
+          setMala(false);
+        }}
+      />
     );
   }
 
-  // ---------- Panel ----------
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 p-4">
-      <header className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">🍳 Panel de pedidos</h1>
-        <div className="flex items-center gap-3 text-sm text-neutral-400">
-          <span>{pedidos.length} activos · se actualiza solo</span>
-          <button
-            className="underline hover:text-neutral-200"
-            onClick={() => {
-              localStorage.removeItem("panel_key");
-              setClave(null);
-            }}
-          >
-            Salir
-          </button>
-        </div>
-      </header>
+    <main className="min-h-screen p-4 md:p-6">
+      <NavPanel clave={clave} onSalir={salir} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         {COLUMNAS.map((col) => {
-          const lista = pedidos.filter((p) => col.estados.includes(p.estado));
+          const listaC = pedidos.filter((p) => col.estados.includes(p.estado));
           return (
-            <section key={col.titulo} className={`rounded-2xl border-t-4 ${col.color} bg-neutral-900 p-3`}>
-              <h2 className="font-bold mb-3">
-                {col.titulo} <span className="text-neutral-400 font-normal">({lista.length})</span>
+            <section key={col.titulo}>
+              <h2 className={`titulo text-xl font-extrabold mb-3 ${col.color}`}>
+                {col.titulo}
+                <span className="ticket-num text-sm text-humo ml-2">
+                  {String(listaC.length).padStart(2, "0")}
+                </span>
               </h2>
-              <div className="flex flex-col gap-3">
-                {lista.length === 0 && (
-                  <p className="text-neutral-500 text-sm text-center py-6">— vacío —</p>
+              <div className="flex flex-col gap-4">
+                {listaC.length === 0 && (
+                  <p className="ticket-num text-humo/60 text-xs text-center py-8 border-2 border-dashed border-carbon-3 rounded-xl">
+                    — sin pedidos —
+                  </p>
                 )}
-                {lista.map((p) => (
-                  <Tarjeta key={p.id} p={p} accionar={accionar} deshabilitado={cargando} />
+                {listaC.map((p) => (
+                  <Comanda key={p.id} p={p} accionar={accionar} ocupado={ocupado} />
                 ))}
               </div>
             </section>
@@ -186,49 +145,96 @@ export default function Panel() {
   );
 }
 
-function Tarjeta({
+function Comanda({
   p,
   accionar,
-  deshabilitado,
+  ocupado,
 }: {
   p: Pedido;
   accionar: (p: Pedido, accion: string) => void;
-  deshabilitado: boolean;
+  ocupado: boolean;
 }) {
   const min = minutosDesde(p.creado_at);
+  const esNuevo = p.estado === "pendiente";
+  const repaFresco =
+    p.repa_actualizado_at != null &&
+    Date.now() - new Date(p.repa_actualizado_at).getTime() < 3 * 60000;
+
   const pagoLinea =
     p.metodo_pago === "efectivo"
-      ? `💵 Efectivo — paga ${dinero(p.paga_con)}, cambio ${dinero(p.cambio)}`
+      ? `EFECTIVO · paga ${dinero(p.paga_con)} · cambio ${dinero(p.cambio)}`
       : p.metodo_pago === "tarjeta"
-        ? "💳 Tarjeta (llevar terminal)"
-        : "🏦 Transferencia";
+        ? "TARJETA · llevar terminal"
+        : "TRANSFERENCIA · ya pagó";
 
-  const Btn = ({ accion, children, estilo }: { accion: string; children: React.ReactNode; estilo: string }) => (
+  const Btn = ({
+    accion,
+    children,
+    estilo,
+  }: {
+    accion: string;
+    children: React.ReactNode;
+    estilo: string;
+  }) => (
     <button
-      disabled={deshabilitado}
+      disabled={ocupado}
       onClick={() => accionar(p, accion)}
-      className={`rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50 ${estilo}`}
+      className={`btn text-sm flex-1 ${estilo}`}
     >
       {children}
     </button>
   );
 
   return (
-    <article className="rounded-xl bg-neutral-800 border border-neutral-700 p-3 text-sm">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-lg font-black">
-          {p.numero_corto ? `#${p.numero_corto}` : "🆕 NUEVO"}
+    <article className={`comanda p-4 pt-5 entrar ${esNuevo ? "urgente" : ""}`}>
+      {/* encabezado del ticket */}
+      <div className="flex items-baseline justify-between">
+        <span className="ticket-num text-2xl font-bold text-tinta">
+          {p.numero_corto ? `#${p.numero_corto}` : "NUEVO"}
         </span>
-        <span className={`text-xs ${min >= 20 ? "text-red-400" : "text-neutral-400"}`}>
-          hace {min} min
+        <span
+          className={`ticket-num text-xs ${min >= 20 ? "text-chile font-bold" : "text-tinta-suave"}`}
+        >
+          {min} min
         </span>
       </div>
+      <p className="titulo text-lg font-bold text-tinta leading-tight">
+        {p.clientes?.nombre ?? "Sin nombre"}
+      </p>
 
-      <p className="font-semibold">
-        👤 {p.clientes?.nombre ?? "Sin nombre"}{" "}
+      <hr className="corte" />
+
+      {/* platillos */}
+      <ul className="ticket-num text-sm text-tinta flex flex-col gap-1">
+        {p.pedido_items.map((i, idx) => (
+          <li key={idx}>
+            <div className="flex justify-between gap-2">
+              <span>
+                {i.cantidad}× {i.nombre_platillo}
+              </span>
+              <span className="text-tinta-suave">{dinero(i.precio_unit * i.cantidad)}</span>
+            </div>
+            {i.notas && (
+              <div className="bg-fuego/20 border-l-4 border-fuego px-2 py-0.5 mt-0.5 font-bold">
+                ⚠ {i.notas}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <hr className="corte" />
+
+      <div className="flex justify-between items-baseline">
+        <span className="ticket-num text-xs text-tinta-suave">{pagoLinea}</span>
+        <span className="ticket-num text-xl font-bold text-tinta">{dinero(p.total)}</span>
+      </div>
+
+      {/* enlaces */}
+      <div className="flex gap-3 mt-1 text-xs">
         {p.clientes?.telefono && (
           <a
-            className="text-emerald-400 underline"
+            className="text-salsa-2 underline font-semibold"
             href={`https://wa.me/${p.clientes.telefono}`}
             target="_blank"
             rel="noreferrer"
@@ -236,53 +242,68 @@ function Tarjeta({
             WhatsApp
           </a>
         )}
-      </p>
+        {p.lat != null && p.lng != null && (
+          <a
+            className="text-calle underline font-semibold"
+            href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Mapa cliente
+          </a>
+        )}
+        {repaFresco && (
+          <a
+            className="text-chile-2 underline font-semibold"
+            href={`https://www.google.com/maps?q=${p.repa_lat},${p.repa_lng}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            📍 Repa en vivo
+          </a>
+        )}
+      </div>
 
-      <ul className="my-2 border-y border-neutral-700 py-2">
-        {p.pedido_items.map((i, idx) => (
-          <li key={idx}>
-            <span className="font-semibold">{i.cantidad}x {i.nombre_platillo}</span>
-            {i.notas && (
-              <span className="block text-amber-300 font-bold pl-4">📝 {i.notas}</span>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <p className="font-bold">Total: {dinero(p.total)}</p>
-      <p className="text-neutral-300">{pagoLinea}</p>
-      {p.lat != null && p.lng != null && (
-        <a
-          className="text-sky-400 underline"
-          href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          📍 Ver ubicación en el mapa
-        </a>
-      )}
-
+      {/* acciones */}
       <div className="flex flex-wrap gap-2 mt-3">
         {p.estado === "pendiente" && (
           <>
-            <Btn accion="aceptar" estilo="bg-emerald-600 hover:bg-emerald-500">✅ Aceptar</Btn>
-            <Btn accion="rechazar" estilo="bg-red-700 hover:bg-red-600">❌ Declinar</Btn>
+            <Btn accion="aceptar" estilo="bg-salsa hover:bg-salsa-2 text-papel">
+              Aceptar
+            </Btn>
+            <Btn accion="rechazar" estilo="bg-chile hover:bg-chile-2 text-papel">
+              Declinar
+            </Btn>
           </>
         )}
         {p.estado === "aceptado" && (
-          <Btn accion="preparando" estilo="bg-sky-600 hover:bg-sky-500">🍳 Preparando</Btn>
+          <Btn accion="preparando" estilo="bg-fuego hover:bg-fuego-2 text-carbon">
+            Preparando
+          </Btn>
         )}
         {(p.estado === "aceptado" || p.estado === "preparando") && (
-          <Btn accion="listo" estilo="bg-violet-600 hover:bg-violet-500">📦 Listo</Btn>
+          <Btn accion="listo" estilo="bg-tinta text-papel hover:opacity-90">
+            Listo
+          </Btn>
         )}
         {p.estado === "listo" && (
-          <Btn accion="reparto" estilo="bg-emerald-600 hover:bg-emerald-500">🛵 En camino</Btn>
+          <Btn accion="reparto" estilo="bg-calle text-papel hover:opacity-90">
+            En camino
+          </Btn>
         )}
         {p.estado === "en_reparto" && (
-          <Btn accion="entregado" estilo="bg-emerald-700 hover:bg-emerald-600">🎉 Entregado</Btn>
+          <Btn accion="entregado" estilo="bg-salsa hover:bg-salsa-2 text-papel">
+            Entregado
+          </Btn>
         )}
         {["aceptado", "preparando", "listo"].includes(p.estado) && (
-          <Btn accion="cancelar" estilo="bg-neutral-700 hover:bg-neutral-600">Cancelar</Btn>
+          <button
+            disabled={ocupado}
+            onClick={() => accionar(p, "cancelar")}
+            className="btn text-sm text-tinta-suave border-2 border-tinta-suave/40 hover:border-tinta-suave"
+          >
+            ✕
+          </button>
         )}
       </div>
     </article>
