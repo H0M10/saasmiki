@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
 // POST: aquí llegan los mensajes de los clientes (y también callbacks de
 // estado tipo "entregado/leído", que ignoramos).
 export async function POST(req: NextRequest) {
+  // Nunca dejar que un error tumbe la respuesta: si Meta no recibe 200,
+  // reintenta en bucle y puede desactivar el webhook. El error se incluye
+  // en el cuerpo solo como diagnóstico (Meta lo ignora).
+  let error: string | null = null;
   try {
     const body = await req.json();
     const msg = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
@@ -39,9 +43,8 @@ export async function POST(req: NextRequest) {
       await procesarMensaje(entrante);
     }
   } catch (err) {
-    // Nunca dejar que un error tumbe la respuesta: si Meta no recibe 200,
-    // reintenta en bucle y puede desactivar el webhook.
+    error = err instanceof Error ? err.message : String(err);
     console.error("Error procesando webhook:", err);
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(error ? { ok: false, error } : { ok: true });
 }

@@ -48,10 +48,9 @@ const SESION_EXPIRA_HORAS = 6;
 export async function procesarMensaje(m: MensajeEntrante) {
   const db = supabaseAdmin();
 
-  const { data: ajustes } = await db.from("ajustes").select("*").single();
-  if (!ajustes) {
-    console.error("No existe la fila de ajustes");
-    return;
+  const { data: ajustes, error: errAjustes } = await db.from("ajustes").select("*").single();
+  if (errAjustes || !ajustes) {
+    throw new Error(`leyendo ajustes: ${errAjustes?.message ?? "fila inexistente"}`);
   }
 
   // "cancelar" reinicia la conversación en cualquier punto
@@ -75,7 +74,10 @@ export async function procesarMensaje(m: MensajeEntrante) {
       await enviarTexto(m.de, `${ajustes.mensaje_cerrado}${textoHorarios(ajustes)}`);
       return;
     }
-    await db.from("sesiones_bot").insert({ telefono: m.de, paso: "categoria" });
+    const { error: errSesion } = await db
+      .from("sesiones_bot")
+      .insert({ telefono: m.de, paso: "categoria" });
+    if (errSesion) throw new Error(`creando sesión: ${errSesion.message}`);
     await enviarTexto(m.de, ajustes.mensaje_bienvenida);
     await enviarMenuCategorias(db, m.de);
     return;
