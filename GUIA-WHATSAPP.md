@@ -42,7 +42,7 @@
 5. Botón **"Generar token"** (Generate token):
    - App: la tuya.
    - Vencimiento: **Nunca** (Never).
-   - Permisos: marca **`whatsapp_business_messaging`**, **`whatsapp_business_management`** y **`business_management`**.
+   - Permisos: marca **`whatsapp_business_messaging`** y **`whatsapp_business_management`** (son los únicos 2 necesarios; ignora los demás que aparezcan en la lista).
 6. 📋 **Copia el token y guárdalo en un lugar seguro** — Meta NO te lo vuelve a mostrar. Este es el token que va en el código.
 
 ## Paso 5 — Configurar el Webhook (esto lo hacemos juntos)
