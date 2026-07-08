@@ -82,6 +82,7 @@ export function PantallaClave({
 const TABS = [
   { href: "/panel", etiqueta: "Pedidos" },
   { href: "/panel/menu", etiqueta: "Menú" },
+  { href: "/panel/kpis", etiqueta: "KPIs" },
   { href: "/panel/ajustes", etiqueta: "Ajustes" },
 ];
 

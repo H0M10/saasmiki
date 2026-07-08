@@ -19,9 +19,14 @@ export async function GET(req: NextRequest) {
       .in("estado", ["pendiente", "aceptado", "preparando", "listo", "en_reparto"])
       .order("creado_at", { ascending: true });
 
-  // Con ubicación del repartidor si ya se corrió la migración 2;
-  // si no existe la columna todavía, se consulta sin ella.
-  let { data, error } = await consultar(", repa_lat, repa_lng, repa_actualizado_at");
+  // Campos que dependen de migraciones; si alguna no se ha corrido todavía,
+  // se reintenta con menos campos para no tumbar el panel.
+  let { data, error } = await consultar(
+    ", repa_lat, repa_lng, repa_actualizado_at, pago_confirmado, comprobante_url"
+  );
+  if (error?.message.includes("pago_confirmado") || error?.message.includes("comprobante_url")) {
+    ({ data, error } = await consultar(", repa_lat, repa_lng, repa_actualizado_at"));
+  }
   if (error?.message.includes("repa_lat")) {
     ({ data, error } = await consultar(""));
   }

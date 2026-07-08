@@ -29,6 +29,9 @@
   --color-salsa-2: #2f8049;
   --color-calle: #4f9cf9;
 
+  /* Gráficas (validado contra fondo oscuro: L 0.48–0.67, contraste ≥3:1) */
+  --color-grafica: #c97a06;
+
   /* Tipografía */
   --font-titulos: var(--fuente-titulos);
   --font-texto: var(--fuente-texto);
@@ -165,6 +168,46 @@ body {
 }
 .entrar {
   animation: entrar 0.25s ease both;
+}
+
+/* Tooltip de las gráficas (aparece al pasar el cursor) */
+.tip {
+  position: relative;
+}
+.tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  font-family: var(--fuente-ticket), monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+  pointer-events: none;
+}
+
+/* Impresión del ticket (térmica 80 mm) */
+@media print {
+  body {
+    background: white !important;
+  }
+  .no-imprimir {
+    display: none !important;
+  }
+  .solo-ticket {
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
 }
 
 /* Parpadeo de urgencia para pedidos nuevos */

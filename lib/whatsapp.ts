@@ -32,6 +32,21 @@ async function enviar(payload: object) {
   return res;
 }
 
+// Descarga una imagen que el cliente mandó (ej. comprobante de pago).
+// Meta entrega primero los metadatos del archivo y luego el binario,
+// ambos autenticados con el token.
+export async function descargarMedia(mediaId: string): Promise<{ buffer: Buffer; mime: string }> {
+  const token = env("WHATSAPP_TOKEN");
+  const meta = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!meta.ok) throw new Error(`media meta: ${await meta.text()}`);
+  const info = await meta.json();
+  const res = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`descarga de media: ${res.status}`);
+  return { buffer: Buffer.from(await res.arrayBuffer()), mime: info.mime_type ?? "image/jpeg" };
+}
+
 export function enviarImagen(a: string, url: string, pie?: string) {
   return enviar({
     messaging_product: "whatsapp",

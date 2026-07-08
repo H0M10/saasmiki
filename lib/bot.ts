@@ -4,7 +4,13 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "./supabase";
-import { enviarTexto, enviarBotones, enviarLista, enviarImagen } from "./whatsapp";
+import {
+  enviarTexto,
+  enviarBotones,
+  enviarLista,
+  enviarImagen,
+  descargarMedia,
+} from "./whatsapp";
 
 // ---------- Tipos ----------
 
@@ -13,6 +19,7 @@ export type MensajeEntrante = {
   texto: string | null; // mensaje de texto plano
   opcionId: string | null; // id de la opción tocada (lista o botón)
   ubicacion: { lat: number; lng: number } | null;
+  imagenId: string | null; // id de media si mandó una imagen (comprobante)
 };
 
 type ItemCarrito = {
@@ -51,6 +58,12 @@ export async function procesarMensaje(m: MensajeEntrante) {
   const { data: ajustes, error: errAjustes } = await db.from("ajustes").select("*").single();
   if (errAjustes || !ajustes) {
     throw new Error(`leyendo ajustes: ${errAjustes?.message ?? "fila inexistente"}`);
+  }
+
+  // Imagen recibida: se interpreta como comprobante de transferencia
+  if (m.imagenId) {
+    await manejarComprobante(db, m);
+    return;
   }
 
   // "cancelar" reinicia la conversación en cualquier punto
@@ -325,7 +338,10 @@ async function pasoPago(
   });
 
   if (metodo === "transferencia" && ajustes.datos_transferencia) {
-    await enviarTexto(m.de, `Datos para tu transferencia 🏦\n\n${ajustes.datos_transferencia}`);
+    await enviarTexto(
+      m.de,
+      `Datos para tu transferencia 🏦\n\n${ajustes.datos_transferencia}\n\nCuando pagues, mándanos la *foto de tu comprobante* por aquí 📸`
+    );
   }
   if (metodo === "tarjeta") {
     await enviarTexto(m.de, "Perfecto, el repartidor lleva la terminal 💳");
@@ -477,6 +493,53 @@ async function pasoConfirmar(db: SupabaseClient, m: MensajeEntrante, s: Sesion) 
     m.de,
     `🎉 ¡Listo, ${d.nombre}! Tu pedido fue enviado al restaurante.\n\nTe avisamos por aquí en cuanto lo confirmen 🙌`
   );
+}
+
+// ---------- Comprobante de transferencia ----------
+
+// Cuando el cliente manda una foto y tiene un pedido activo pagado por
+// transferencia sin confirmar, se guarda como su comprobante (bucket privado)
+// y el panel muestra el botón para confirmar el pago.
+async function manejarComprobante(db: SupabaseClient, m: MensajeEntrante) {
+  try {
+    const { data: cliente } = await db
+      .from("clientes")
+      .select("id")
+      .eq("telefono", m.de)
+      .maybeSingle();
+
+    if (cliente) {
+      const { data: pedido } = await db
+        .from("pedidos")
+        .select("id, pago_confirmado")
+        .eq("cliente_id", cliente.id)
+        .eq("metodo_pago", "transferencia")
+        .in("estado", ["pendiente", "aceptado", "preparando", "listo", "en_reparto"])
+        .order("creado_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pedido && !pedido.pago_confirmado) {
+        const media = await descargarMedia(m.imagenId!);
+        const ruta = `pedido-${pedido.id}.jpg`;
+        const { error: errSubida } = await db.storage
+          .from("comprobantes")
+          .upload(ruta, media.buffer, { contentType: media.mime, upsert: true });
+        if (errSubida) throw new Error(`guardando comprobante: ${errSubida.message}`);
+
+        await db.from("pedidos").update({ comprobante_url: ruta }).eq("id", pedido.id);
+        await enviarTexto(m.de, "📄 ¡Recibimos tu comprobante! Lo revisamos y te confirmamos en un momento 🙌");
+        return;
+      }
+    }
+    await enviarTexto(
+      m.de,
+      "Recibí tu imagen 🙂 Solo puedo procesar fotos como comprobante de transferencia de un pedido activo."
+    );
+  } catch (e) {
+    console.error("Error con el comprobante:", e);
+    await enviarTexto(m.de, "No pude guardar tu comprobante 😔 Inténtalo de nuevo en un momento.");
+  }
 }
 
 // ---------- Mensajes de menú ----------

@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
         ubicacion: msg.location
           ? { lat: msg.location.latitude, lng: msg.location.longitude }
           : null,
+        imagenId: msg.type === "image" ? (msg.image?.id ?? null) : null,
       };
       await procesarMensaje(entrante);
     }

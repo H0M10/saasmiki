@@ -24,6 +24,8 @@ type Pedido = {
   repa_lat?: number | null;
   repa_lng?: number | null;
   repa_actualizado_at?: string | null;
+  pago_confirmado?: boolean;
+  comprobante_url?: string | null;
   clientes: { nombre: string | null; telefono: string } | null;
   pedido_items: {
     nombre_platillo: string;
@@ -165,7 +167,18 @@ function Comanda({
       ? `EFECTIVO · paga ${dinero(p.paga_con)} · cambio ${dinero(p.cambio)}`
       : p.metodo_pago === "tarjeta"
         ? "TARJETA · llevar terminal"
-        : "TRANSFERENCIA · ya pagó";
+        : "TRANSFERENCIA";
+
+  async function verComprobante() {
+    const clave = localStorage.getItem("panel_key");
+    if (!clave) return;
+    const res = await fetch(`/api/panel/pedidos/${p.id}/comprobante`, {
+      headers: { "x-panel-key": clave },
+    });
+    const j = await res.json();
+    if (res.ok) window.open(j.url, "_blank");
+    else alert(`Error: ${j.error}`);
+  }
 
   const Btn = ({
     accion,
@@ -230,8 +243,43 @@ function Comanda({
         <span className="ticket-num text-xl font-bold text-tinta">{dinero(p.total)}</span>
       </div>
 
+      {/* estado del pago (solo transferencias) */}
+      {p.metodo_pago === "transferencia" && (
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {p.pago_confirmado ? (
+            <span className="sello text-xs text-salsa-2">Pago ✓</span>
+          ) : (
+            <>
+              <span className="sello text-xs text-chile-2">Pago por confirmar</span>
+              <button
+                disabled={ocupado}
+                onClick={() => accionar(p, "pago_ok")}
+                className="btn text-xs bg-salsa hover:bg-salsa-2 text-papel"
+              >
+                ✓ Pago recibido
+              </button>
+            </>
+          )}
+          {p.comprobante_url && (
+            <button onClick={verComprobante} className="text-calle underline text-xs font-semibold">
+              Ver comprobante
+            </button>
+          )}
+        </div>
+      )}
+
       {/* enlaces */}
       <div className="flex gap-3 mt-1 text-xs">
+        {p.numero_corto && (
+          <a
+            className="text-tinta underline font-semibold"
+            href={`/panel/ticket/${p.id}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            🖨 Ticket
+          </a>
+        )}
         {p.clientes?.telefono && (
           <a
             className="text-salsa-2 underline font-semibold"

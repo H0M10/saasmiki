@@ -25,6 +25,29 @@ const TRANSICIONES: Record<
   },
 };
 
+// Un pedido completo (lo usa el ticket imprimible)
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!claveValida(req)) {
+    return NextResponse.json({ error: "clave inválida" }, { status: 401 });
+  }
+  const { id } = await params;
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from("pedidos")
+    .select(
+      "id, numero_corto, estado, metodo_pago, paga_con, cambio, lat, lng, total, creado_at, clientes(nombre, telefono), pedido_items(nombre_platillo, cantidad, precio_unit, notas)"
+    )
+    .eq("id", id)
+    .single();
+  if (error || !data) {
+    return NextResponse.json({ error: "pedido no encontrado" }, { status: 404 });
+  }
+  return NextResponse.json({ pedido: data });
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,6 +59,34 @@ export async function POST(
   const esRepa = claveRepaValida(req) && ACCIONES_REPA.includes(accion);
   if (!esAdmin && !esRepa) {
     return NextResponse.json({ error: "clave inválida" }, { status: 401 });
+  }
+
+  // Confirmar pago: no es una transición de estado; marca el pedido como
+  // pagado (transferencia revisada) y avisa al cliente.
+  if (accion === "pago_ok") {
+    if (!esAdmin) return NextResponse.json({ error: "clave inválida" }, { status: 401 });
+    const db = supabaseAdmin();
+    const { data: pedido, error: errP } = await db
+      .from("pedidos")
+      .update({ pago_confirmado: true })
+      .eq("id", id)
+      .select("id, numero_corto, clientes(telefono)")
+      .single();
+    if (errP || !pedido) {
+      return NextResponse.json({ error: errP?.message ?? "pedido no encontrado" }, { status: 500 });
+    }
+    const cli = pedido.clientes as unknown as { telefono: string } | null;
+    if (cli?.telefono) {
+      try {
+        await enviarTexto(
+          cli.telefono,
+          `✅ ¡Pago confirmado! Gracias 🙌${pedido.numero_corto ? ` (pedido #${pedido.numero_corto})` : ""}`
+        );
+      } catch (e) {
+        console.error("No se pudo avisar la confirmación de pago:", e);
+      }
+    }
+    return NextResponse.json({ ok: true });
   }
 
   const t = TRANSICIONES[accion];
