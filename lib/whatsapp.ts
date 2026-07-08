@@ -32,6 +32,15 @@ async function enviar(payload: object) {
   return res;
 }
 
+export function enviarImagen(a: string, url: string, pie?: string) {
+  return enviar({
+    messaging_product: "whatsapp",
+    to: normalizar(a),
+    type: "image",
+    image: { link: url, caption: pie },
+  });
+}
+
 export function enviarTexto(a: string, texto: string) {
   return enviar({
     messaging_product: "whatsapp",

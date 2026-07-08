@@ -4,7 +4,7 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "./supabase";
-import { enviarTexto, enviarBotones, enviarLista } from "./whatsapp";
+import { enviarTexto, enviarBotones, enviarLista, enviarImagen } from "./whatsapp";
 
 // ---------- Tipos ----------
 
@@ -146,7 +146,7 @@ async function pasoPlatillo(db: SupabaseClient, m: MensajeEntrante, s: Sesion) {
     const platId = m.opcionId.slice(5);
     const { data: p } = await db
       .from("platillos")
-      .select("id, nombre, precio")
+      .select("id, nombre, precio, foto_url")
       .eq("id", platId)
       .single();
     if (!p) {
@@ -159,6 +159,15 @@ async function pasoPlatillo(db: SupabaseClient, m: MensajeEntrante, s: Sesion) {
       paso: "cantidad",
       datos: { ...s.datos, platillo: { id: p.id, nombre: p.nombre, precio: Number(p.precio) } },
     });
+    if (p.foto_url) {
+      // La foto del platillo con nombre y precio de pie; si Meta no puede
+      // descargarla no se corta el flujo (el error solo se registra).
+      try {
+        await enviarImagen(m.de, p.foto_url, `${p.nombre} — $${Number(p.precio).toFixed(2)}`);
+      } catch (e) {
+        console.error("No se pudo mandar la foto:", e);
+      }
+    }
     await enviarBotones(m.de, `*${p.nombre}* — $${Number(p.precio).toFixed(2)}\n\n¿Cuántos quieres?`, [
       { id: "cant:1", titulo: "1" },
       { id: "cant:2", titulo: "2" },

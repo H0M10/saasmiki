@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("categorias")
-    .select("id, nombre, orden, activa, platillos(id, nombre, descripcion, precio, disponible, orden)")
+    .select("id, nombre, orden, activa, platillos(id, nombre, descripcion, precio, disponible, orden, foto_url)")
     .order("orden")
     .order("orden", { referencedTable: "platillos" });
 

@@ -10,7 +10,23 @@ type Platillo = {
   precio: number;
   disponible: boolean;
   orden: number;
+  foto_url: string | null;
 };
+
+// Reduce la foto en el navegador (máx 1280 px, JPEG) para que suba rápido
+// y WhatsApp la acepte sin problema.
+async function comprimirImagen(archivo: File): Promise<Blob> {
+  const img = await createImageBitmap(archivo);
+  const max = 1280;
+  const escala = Math.min(1, max / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * escala);
+  canvas.height = Math.round(img.height * escala);
+  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return new Promise((res, rej) =>
+    canvas.toBlob((b) => (b ? res(b) : rej(new Error("no se pudo procesar la imagen"))), "image/jpeg", 0.82)
+  );
+}
 
 type Categoria = {
   id: string;
@@ -57,6 +73,47 @@ export default function EditorMenu() {
       const j = await res.json();
       if (!res.ok) alert(`Error: ${j.error}`);
       else if (j.aviso) alert(j.aviso);
+      await cargar(clave);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function subirFoto(platilloId: string, archivo: File) {
+    if (!clave) return;
+    setOcupado(true);
+    try {
+      const blob = await comprimirImagen(archivo);
+      const fd = new FormData();
+      fd.append("archivo", blob, "foto.jpg");
+      fd.append("platillo_id", platilloId);
+      const res = await fetch("/api/panel/menu/foto", {
+        method: "POST",
+        headers: { "x-panel-key": clave },
+        body: fd,
+      });
+      const j = await res.json();
+      if (!res.ok) alert(`Error: ${j.error}`);
+      await cargar(clave);
+    } catch (e) {
+      alert(`Error con la imagen: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function quitarFoto(platilloId: string) {
+    if (!clave || !confirm("¿Quitar la foto de este platillo?")) return;
+    setOcupado(true);
+    try {
+      const res = await fetch(`/api/panel/menu/foto?platillo_id=${platilloId}`, {
+        method: "DELETE",
+        headers: { "x-panel-key": clave },
+      });
+      if (!res.ok) {
+        const j = await res.json();
+        alert(`Error: ${j.error}`);
+      }
       await cargar(clave);
     } finally {
       setOcupado(false);
@@ -130,6 +187,45 @@ export default function EditorMenu() {
                       pl.disponible ? "" : "opacity-50"
                     }`}
                   >
+                    <div className="relative shrink-0">
+                      <label
+                        className="cursor-pointer block"
+                        title={pl.foto_url ? "Cambiar foto" : "Agregar foto (el bot la manda al cliente)"}
+                      >
+                        {pl.foto_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={pl.foto_url}
+                            alt={pl.nombre}
+                            className="w-12 h-12 object-cover rounded-lg border-2 border-tinta/20"
+                          />
+                        ) : (
+                          <span className="w-12 h-12 rounded-lg border-2 border-dashed border-tinta/30 flex items-center justify-center text-lg">
+                            📷
+                          </span>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) subirFoto(pl.id, f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {pl.foto_url && (
+                        <button
+                          type="button"
+                          title="Quitar foto"
+                          onClick={() => quitarFoto(pl.id)}
+                          className="absolute -top-1.5 -right-1.5 bg-chile text-papel rounded-full w-4 h-4 text-[10px] leading-none"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-40">
                       <input
                         className="ticket-num font-bold text-tinta bg-transparent border-b border-transparent focus:border-fuego outline-none w-full"
